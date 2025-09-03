@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - MEDIMORPH</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --light-bg: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            max-width: 1400px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .upload-section {
+            background: var(--light-bg);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            border: 2px dashed #bdc3c7;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--secondary-color), #2980b9);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+        }
+
+        .medication-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-left: 5px solid var(--secondary-color);
+            transition: all 0.3s ease;
+        }
+
+        .medication-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .medication-card.taken {
+            border-left-color: var(--success-color);
+            background: #f8fff9;
+        }
+
+        .medication-card.taken .btn-take {
+            background: var(--success-color);
+            pointer-events: none;
+        }
+
+        .real-time-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--success-color);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .real-time-notification.show {
+            transform: translateX(0);
+        }
+
+        .real-time-notification.reminder {
+            background: var(--warning-color);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: translateX(0) scale(1); }
+            50% { transform: translateX(0) scale(1.05); }
+            100% { transform: translateX(0) scale(1); }
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 10px 10px 0 0;
+            margin-right: 5px;
+            color: var(--primary-color);
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .report-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .info-modal .modal-content {
+            border-radius: 15px;
+        }
+
+        .info-modal .modal-header {
+            background: var(--secondary-color);
+            color: white;
+            border-radius: 15px 15px 0 0;
+        }
+
+        .compliance-badge {
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+        }
+
+        .compliance-excellent { background: var(--success-color); color: white; }
+        .compliance-good { background: #f39c12; color: white; }
+        .compliance-poor { background: var(--accent-color); color: white; }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1><i class="fas fa-pills"></i> MEDIMORPH Dashboard</h1>
+                    <p>Welcome back, <span id="userName">User</span>!</p>
+                </div>
+                <div>
+                    <a href="/logout" class="btn btn-outline-light">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Navigation Tabs -->
+            <ul class="nav nav-tabs mb-4" id="dashboardTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="medications-tab" data-bs-toggle="tab" data-bs-target="#medications" type="button" role="tab">
+                        <i class="fas fa-pills"></i> Medications
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">
+                        <i class="fas fa-upload"></i> Upload Prescription
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports" type="button" role="tab">
+                        <i class="fas fa-chart-line"></i> Reports
+                    </button>
+                </li>
+                 <li class="nav-item" role="presentation">
+                     <button class="nav-link" id="reminders-tab" data-bs-toggle="tab" data-bs-target="#reminders" type="button" role="tab">
+                         <i class="fas fa-bell"></i> Reminders
+                     </button>
+                 </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="dashboardTabContent">
+                <!-- Medications Tab -->
+                <div class="tab-pane fade show active" id="medications" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3><i class="fas fa-pills"></i> Your Medications</h3>
+                        <button class="btn btn-primary" onclick="loadMedications()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div id="medicationsList"></div>
+                </div>
+
+                <!-- Upload Tab -->
+                <div class="tab-pane fade" id="upload" role="tabpanel">
+                    <div class="upload-section">
+                        <h3>Upload Prescription</h3>
+                        <p class="text-muted">Take a photo or upload an image of your prescription</p>
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <input type="file" id="prescriptionFile" name="file" accept="image/*" class="form-control" style="display: none;">
+                            <button type="button" class="btn btn-primary" onclick="document.getElementById('prescriptionFile').click()">
+                                <i class="fas fa-camera"></i> Choose Image
+                            </button>
+                            <button type="submit" class="btn btn-success ms-2" id="uploadBtn" style="display: none;">
+                                <i class="fas fa-upload"></i> Process
+                            </button>
+                        </form>
+                        <div id="fileInfo" class="mt-2" style="display: none;"></div>
+                    </div>
+                    <div id="alertSection"></div>
+                </div>
+
+                <!-- Reports Tab -->
+                <div class="tab-pane fade" id="reports" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3><i class="fas fa-chart-line"></i> Medication Reports</h3>
+                        <button class="btn btn-primary" onclick="loadMedicationReport()">
+                            <i class="fas fa-sync-alt"></i> Refresh Report
+                        </button>
+                    </div>
+                    <div id="reportsContent"></div>
+                </div>
+
+                 <!-- Reminders Tab -->
+                 <div class="tab-pane fade" id="reminders" role="tabpanel">
+                     <div class="d-flex justify-content-between align-items-center mb-3">
+                         <h3><i class="fas fa-bell"></i> Reminder Settings</h3>
+                         <button class="btn btn-primary" onclick="loadReminders()">
+                             <i class="fas fa-sync-alt"></i> Refresh
+                         </button>
+                     </div>
+                     <div class="row">
+                         <div class="col-md-6">
+                             <div class="card">
+                                 <div class="card-header">
+                                     <h5><i class="fas fa-cog"></i> Alarm Settings</h5>
+                                 </div>
+                                 <div class="card-body">
+                                     <div class="mb-3">
+                                         <label class="form-label" for="alarmSound">Alarm Sound</label>
+                                         <select class="form-select" id="alarmSound" aria-label="Alarm sound selection">
+                                             <option value="beep">Beep Sound</option>
+                                             <option value="bell">Bell Sound</option>
+                                             <option value="chime">Chime Sound</option>
+                                             <option value="custom">Custom Sound</option>
+                                         </select>
+                                     </div>
+                                     <div class="mb-3">
+                                         <label class="form-label" for="alarmVolume">Alarm Volume</label>
+                                         <input type="range" class="form-range" id="alarmVolume" min="0" max="100" value="50" aria-label="Alarm volume">
+                                         <small class="text-muted">Volume: <span id="volumeValue">50</span>%</small>
+                                     </div>
+                                     <div class="mb-3">
+                                         <label class="form-label" for="reminderDuration">Reminder Duration</label>
+                                         <select class="form-select" id="reminderDuration" aria-label="Reminder duration">
+                                             <option value="5">5 seconds</option>
+                                             <option value="10" selected>10 seconds</option>
+                                             <option value="15">15 seconds</option>
+                                             <option value="30">30 seconds</option>
+                                         </select>
+                                     </div>
+                                     <div class="form-check mb-3">
+                                         <input class="form-check-input" type="checkbox" id="enableVibration" checked>
+                                         <label class="form-check-label" for="enableVibration">
+                                             Enable Vibration (Mobile)
+                                         </label>
+                                     </div>
+                                     <div class="form-check mb-3">
+                                         <input class="form-check-input" type="checkbox" id="enableDesktopNotification" checked>
+                                         <label class="form-check-label" for="enableDesktopNotification">
+                                             Enable Desktop Notifications
+                                         </label>
+                                     </div>
+                                     <button class="btn btn-success" onclick="saveReminderSettings()">
+                                         <i class="fas fa-save"></i> Save Settings
+                                     </button>
+                                     <button class="btn btn-info ms-2" onclick="testAlarm()">
+                                         <i class="fas fa-play"></i> Test Alarm
+                                     </button>
+                                 </div>
+                             </div>
+                         </div>
+                         <div class="col-md-6">
+                             <div class="card">
+                                 <div class="card-header">
+                                     <h5><i class="fas fa-clock"></i> Active Reminders</h5>
+                                 </div>
+                                 <div class="card-body">
+                                     <div id="activeRemindersList">
+                                         <div class="text-center text-muted py-3">
+                                             <i class="fas fa-clock fa-2x mb-2"></i>
+                                             <p>Loading reminders...</p>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Notification -->
+    <div class="real-time-notification" id="realTimeNotification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notificationMessage">Notification message</span>
+    </div>
+
+    <!-- Medication Info Modal -->
+    <div class="modal fade info-modal" id="medicationInfoModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="medicationInfoTitle">Medication Information</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="medicationInfoBody">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let socket = null;
+        let currentUser = null;
+        let medicationsData = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthentication();
+            initializeWebSocket();
+            loadUserProfile();
+            loadMedications();
+            loadReminderSettings();
+            
+            document.getElementById('prescriptionFile').addEventListener('change', handleFileSelect);
+            document.getElementById('uploadForm').addEventListener('submit', handleUpload);
+            
+            // Volume slider functionality
+            document.getElementById('alarmVolume').addEventListener('input', function() {
+                document.getElementById('volumeValue').textContent = this.value;
+            });
+            
+            // Request notification permission
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        });
+
+        function checkAuthentication() {
+            // Server-side authentication is handled by Flask-Login
+            // If we reach this page, user is authenticated
+            // Get user info from the page or API instead of localStorage
+            console.log('Dashboard loaded - user is authenticated by server');
+        }
+
+        function initializeWebSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Connected to real-time updates');
+                socket.emit('join_user_room');
+            });
+            
+            socket.on('medication_added', function(data) {
+                showRealTimeNotification('New medication added: ' + data.medication.name);
+                loadMedications();
+            });
+            
+            socket.on('medication_taken', function(data) {
+                showRealTimeNotification(`Medication taken: ${data.medication_name}`, 'success');
+                updateMedicationStatus(data.medication_id, true);
+            });
+            
+            socket.on('medication_reminder', function(data) {
+                console.log('🔔 Medication reminder received:', data);
+
+                // Show visual notification
+                showRealTimeNotification(`⏰ Time to take ${data.medication_name} - ${data.dosage}`, 'reminder');
+
+                // Play alarm sound
+                playAlarmSound();
+
+                // Show browser notification
+                showBrowserNotification(data);
+
+                // Show modal alert for critical reminders
+                showReminderModal(data);
+            });
+        }
+
+        function playAlarmSound() {
+            // Enhanced alarm sound with settings
+            const settings = getReminderSettings();
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Different sounds based on setting
+            const frequencies = {
+                'beep': [800, 600, 800],
+                'bell': [523, 659, 784, 659],
+                'chime': [440, 554, 659, 554, 440],
+                'custom': [400, 500, 600, 500, 400]
+            };
+            
+            const freq = frequencies[settings.sound] || frequencies.beep;
+            const volume = settings.volume / 100;
+            const duration = settings.duration;
+            
+            // Play the sound sequence
+            freq.forEach((f, index) => {
+                oscillator.frequency.setValueAtTime(f, audioContext.currentTime + index * 0.2);
+            });
+            
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+            
+            // Vibration if enabled and supported
+            if (settings.vibration && navigator.vibrate) {
+                navigator.vibrate([200, 100, 200, 100, 200]);
+            }
+            
+            // Desktop notification if enabled
+            if (settings.desktopNotification && Notification.permission === 'granted') {
+                new Notification('Medication Reminder', {
+                    body: 'Time to take your medication!',
+                    icon: '/favicon.ico',
+                    requireInteraction: true
+                });
+            }
+        }
+        
+        function getReminderSettings() {
+            const settings = localStorage.getItem('reminderSettings');
+            return settings ? JSON.parse(settings) : {
+                sound: 'beep',
+                volume: 50,
+                duration: 10,
+                vibration: true,
+                desktopNotification: true
+            };
+        }
+
+        function showBrowserNotification(data) {
+            console.log('📢 Showing browser notification...');
+
+            // Request notification permission if not granted
+            if (Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        createNotification(data);
+                    }
+                });
+            } else if (Notification.permission === 'granted') {
+                createNotification(data);
+            }
+        }
+
+        function createNotification(data) {
+            const notification = new Notification(`💊 Medication Reminder`, {
+                body: `Time to take ${data.medication_name} - ${data.dosage}`,
+                icon: '/favicon.ico',
+                tag: `medication-${data.medication_id}`,
+                requireInteraction: true
+            });
+
+            notification.onclick = function() {
+                window.focus();
+                notification.close();
+                document.querySelector('#medications-tab').click();
+            };
+
+            setTimeout(() => notification.close(), 30000);
+        }
+
+        function showReminderModal(data) {
+            console.log('🚨 Showing reminder modal...');
+
+            const modalHtml = `
+                <div class="modal fade" id="reminderModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-warning">
+                            <div class="modal-header bg-warning text-dark">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-bell"></i> Medication Reminder
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div class="mb-3">
+                                    <i class="fas fa-pills fa-3x text-primary mb-3"></i>
+                                    <h4>Time to take your medication!</h4>
+                                </div>
+                                <div class="alert alert-info">
+                                    <h5><strong>${data.medication_name}</strong></h5>
+                                    <p class="mb-1"><strong>Dosage:</strong> ${data.dosage}</p>
+                                    <p class="mb-1"><strong>Time:</strong> ${data.time}</p>
+                                    ${data.instructions ? `<p class="mb-0"><strong>Instructions:</strong> ${data.instructions}</p>` : ''}
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-success" onclick="takeMedicationFromReminder(${data.medication_id})">
+                                    <i class="fas fa-check"></i> Mark as Taken
+                                </button>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times"></i> Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const existingModal = document.getElementById('reminderModal');
+            if (existingModal) existingModal.remove();
+
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = new bootstrap.Modal(document.getElementById('reminderModal'));
+            modal.show();
+        }
+
+        function takeMedicationFromReminder(medicationId) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('reminderModal'));
+            if (modal) modal.hide();
+            takeMedication(medicationId);
+        }
+        
+        function saveReminderSettings() {
+            const settings = {
+                sound: document.getElementById('alarmSound').value,
+                volume: document.getElementById('alarmVolume').value,
+                duration: parseInt(document.getElementById('reminderDuration').value),
+                vibration: document.getElementById('enableVibration').checked,
+                desktopNotification: document.getElementById('enableDesktopNotification').checked
+            };
+            
+            localStorage.setItem('reminderSettings', JSON.stringify(settings));
+            showAlert('Reminder settings saved successfully!', 'success');
+        }
+        
+        function loadReminderSettings() {
+            const settings = getReminderSettings();
+            document.getElementById('alarmSound').value = settings.sound;
+            document.getElementById('alarmVolume').value = settings.volume;
+            document.getElementById('reminderDuration').value = settings.duration;
+            document.getElementById('enableVibration').checked = settings.vibration;
+            document.getElementById('enableDesktopNotification').checked = settings.desktopNotification;
+            document.getElementById('volumeValue').textContent = settings.volume;
+        }
+        
+        function testAlarm() {
+            playAlarmSound();
+            showAlert('Testing alarm sound...', 'info');
+        }
+        
+        async function loadReminders() {
+            try {
+                const response = await fetch('/reminders');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayReminders(data);
+                } else {
+                    showAlert('Error loading reminders: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error loading reminders: ' + error.message, 'danger');
+            }
+        }
+        
+        function displayReminders(reminders) {
+            const container = document.getElementById('activeRemindersList');
+            
+            if (reminders.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-clock fa-2x mb-2"></i>
+                        <p>No active reminders found</p>
+                        <small>Reminders are automatically created when you upload prescriptions</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = reminders.map(reminder => `
+                <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                    <div>
+                        <strong>${reminder.medication_name || 'Unknown Medication'}</strong><br>
+                        <small class="text-muted">Time: ${reminder.time}</small>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted">
+                            ${reminder.last_taken ? `Last taken: ${new Date(reminder.last_taken).toLocaleString()}` : 'Not taken yet'}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadUserProfile() {
+            try {
+                const response = await fetch('/user/profile');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const user = data.user;
+                    document.getElementById('userName').textContent = `${user.first_name} ${user.last_name}`;
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('fileInfo').innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-file-image"></i> Selected: ${file.name}
+                    </div>
+                `;
+                document.getElementById('fileInfo').style.display = 'block';
+                document.getElementById('uploadBtn').style.display = 'inline-block';
+            }
+        }
+
+        async function handleUpload(event) {
+            event.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('prescriptionFile');
+            
+            if (!fileInput.files[0]) {
+                showAlert('Please select a file first.', 'warning');
+                return;
+            }
+            
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch('/upload-prescription', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Prescription processed successfully!', 'success');
+                    loadMedications();
+                    
+                    document.getElementById('uploadForm').reset();
+                    document.getElementById('fileInfo').style.display = 'none';
+                    document.getElementById('uploadBtn').style.display = 'none';
+                } else {
+                    showAlert(result.error || 'Error processing prescription', 'danger');
+                }
+            } catch (error) {
+                showAlert('Error uploading file: ' + error.message, 'danger');
+            }
+        }
+
+        async function loadMedications() {
+            try {
+                const response = await fetch('/medications');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    medicationsData = data;
+                    displayMedications(data);
+                } else {
+                    showAlert('Error loading medications: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error loading medications: ' + error.message, 'danger');
+            }
+        }
+
+        function displayMedications(medications) {
+            const container = document.getElementById('medicationsList');
+            
+            if (medications.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-pills fa-3x mb-3"></i>
+                        <h4>No medications found</h4>
+                        <p>Upload a prescription to get started</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = medications.map(med => `
+                <div class="medication-card" id="med-card-${med.id}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-2">
+                                <h5 class="mb-0">${med.name}</h5>
+                                <button class="btn btn-sm btn-outline-info ms-2" onclick="searchMedicationInfo('${med.name}')">
+                                    <i class="fas fa-info-circle"></i> Info
+                                </button>
+                            </div>
+                            <p class="text-muted mb-2">
+                                <strong>Dosage:</strong> ${med.dosage} | 
+                                <strong>Frequency:</strong> ${med.frequency} |
+                                <strong>Duration:</strong> ${med.duration}
+                            </p>
+                            ${med.instructions ? `<p class="text-muted"><strong>Instructions:</strong> ${med.instructions}</p>` : ''}
+                        </div>
+                        <div class="d-flex flex-column">
+                            <button class="btn btn-success btn-sm btn-take mb-2" onclick="takeMedication('${med.id}')" id="take-btn-${med.id}">
+                                <i class="fas fa-check"></i> Take Now
+                            </button>
+                            <small class="text-muted" id="last-taken-${med.id}"></small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function takeMedication(medicationId) {
+            try {
+                const button = document.getElementById(`take-btn-${medicationId}`);
+                const card = document.getElementById(`med-card-${medicationId}`);
+                
+                // Disable button and show loading
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taking...';
+                
+                const response = await fetch(`/take-medication/${medicationId}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Update button and card appearance
+                    button.innerHTML = '<i class="fas fa-check"></i> Taken';
+                    button.className = 'btn btn-secondary btn-sm btn-take mb-2';
+                    button.disabled = true;
+                    card.classList.add('taken');
+                    
+                    // Update last taken time
+                    const lastTakenEl = document.getElementById(`last-taken-${medicationId}`);
+                    const now = new Date();
+                    lastTakenEl.textContent = `Taken at ${now.toLocaleTimeString()}`;
+                    
+                    showAlert('Medication marked as taken!', 'success');
+                } else {
+                    showAlert(result.error || 'Error marking medication as taken', 'danger');
+                    // Reset button
+                    button.disabled = false;
+                    button.innerHTML = '<i class="fas fa-check"></i> Take Now';
+                }
+            } catch (error) {
+                showAlert('Error: ' + error.message, 'danger');
+                // Reset button
+                const button = document.getElementById(`take-btn-${medicationId}`);
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-check"></i> Take Now';
+            }
+        }
+
+        function updateMedicationStatus(medicationId, taken) {
+            const button = document.getElementById(`take-btn-${medicationId}`);
+            const card = document.getElementById(`med-card-${medicationId}`);
+            
+            if (taken) {
+                button.innerHTML = '<i class="fas fa-check"></i> Taken';
+                button.className = 'btn btn-secondary btn-sm btn-take mb-2';
+                button.disabled = true;
+                card.classList.add('taken');
+                
+                const lastTakenEl = document.getElementById(`last-taken-${medicationId}`);
+                const now = new Date();
+                lastTakenEl.textContent = `Taken at ${now.toLocaleTimeString()}`;
+            }
+        }
+
+        async function searchMedicationInfo(medicationName) {
+            try {
+                const response = await fetch(`/search-medication-info?name=${encodeURIComponent(medicationName)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayMedicationInfo(medicationName, data.information);
+                } else {
+                    showAlert('Error loading medication information', 'danger');
+                }
+            } catch (error) {
+                showAlert('Error: ' + error.message, 'danger');
+            }
+        }
+
+        function displayMedicationInfo(medicationName, info) {
+            // Create a comprehensive modal with medication info and web links
+            const modal = new bootstrap.Modal(document.getElementById('medicationInfoModal'));
+            const title = document.getElementById('medicationInfoTitle');
+            const body = document.getElementById('medicationInfoBody');
+            
+            title.textContent = `${medicationName} Information`;
+            
+            let webLinksHtml = '';
+            if (info.search_urls && info.search_urls.length > 0) {
+                webLinksHtml = `
+                    <div class="mt-3">
+                        <h6><i class="fas fa-globe"></i> Search Web for More Information:</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            ${info.search_urls.map(url => {
+                                const domain = url.includes('drugs.com') ? 'Drugs.com' : 
+                                             url.includes('webmd.com') ? 'WebMD' : 
+                                             url.includes('rxlist.com') ? 'RxList' : 
+                                             url.includes('fda.gov') ? 'FDA' : 'Medical Site';
+                                return `<a href="${url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-external-link-alt"></i> ${domain}
+                                </a>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            body.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-tag"></i> Generic Name</h6>
+                        <p>${info.generic_name}</p>
+                        
+                        <h6><i class="fas fa-pills"></i> Common Dosages</h6>
+                        <ul>
+                            ${info.common_dosages.map(dosage => `<li>${dosage}</li>`).join('')}
+                        </ul>
+                        
+                        <h6><i class="fas fa-clock"></i> Frequency</h6>
+                        <ul>
+                            ${info.frequency.map(freq => `<li>${freq}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-exclamation-triangle"></i> Side Effects</h6>
+                        <ul>
+                            ${info.side_effects.map(effect => `<li>${effect}</li>`).join('')}
+                        </ul>
+                        
+                        <h6><i class="fas fa-shield-alt"></i> Precautions</h6>
+                        <ul>
+                            ${info.precautions.map(precaution => `<li>${precaution}</li>`).join('')}
+                        </ul>
+                        
+                        <h6><i class="fas fa-exclamation-circle"></i> Drug Interactions</h6>
+                        <ul>
+                            ${info.interactions.map(interaction => `<li>${interaction}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                
+                ${info.web_info ? `
+                <div class="mt-3">
+                    <h6><i class="fas fa-info-circle"></i> Description</h6>
+                    <p>${info.web_info}</p>
+                </div>
+                ` : ''}
+                
+                ${webLinksHtml}
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i> Source: ${info.source || 'Database'}
+                    </small>
+                </div>
+            `;
+            
+            modal.show();
+        }
+
+        async function loadMedicationReport() {
+            try {
+                const response = await fetch('/medication-report');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayMedicationReport(data);
+                } else {
+                    showAlert('Error loading report: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error loading report: ' + error.message, 'danger');
+            }
+        }
+
+        function displayMedicationReport(report) {
+            const container = document.getElementById('reportsContent');
+            
+            // Determine compliance badge class
+            let complianceClass = 'compliance-poor';
+            if (report.compliance_rate >= 90) complianceClass = 'compliance-excellent';
+            else if (report.compliance_rate >= 70) complianceClass = 'compliance-good';
+            
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="report-card text-center">
+                            <h4><i class="fas fa-pills"></i></h4>
+                            <h3>${report.total_medications}</h3>
+                            <p>Active Medications</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="report-card text-center">
+                            <h4><i class="fas fa-check-circle"></i></h4>
+                            <h3>${report.total_doses_taken}</h3>
+                            <p>Doses Taken</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="report-card text-center">
+                            <h4><i class="fas fa-percentage"></i></h4>
+                            <h3>${report.compliance_rate}%</h3>
+                            <p>Compliance Rate</p>
+                            <span class="compliance-badge ${complianceClass}">
+                                ${report.compliance_rate >= 90 ? 'Excellent' : report.compliance_rate >= 70 ? 'Good' : 'Needs Improvement'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-list"></i> Medication Summary</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Medication</th>
+                                        <th>Dosage</th>
+                                        <th>Frequency</th>
+                                        <th>Doses Taken</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.medications.map(med => `
+                                        <tr>
+                                            <td>${med.name}</td>
+                                            <td>${med.dosage}</td>
+                                            <td>${med.frequency}</td>
+                                            <td>${med.doses_taken}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-history"></i> Recent Activity</h5>
+                        <div class="list-group">
+                            ${report.recent_logs.map(log => `
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>${log.medication_name}</strong>
+                                        <small>${new Date(log.taken_at).toLocaleString()}</small>
+                                    </div>
+                                    <small class="text-muted">${log.dosage_taken}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showRealTimeNotification(message, type = 'success') {
+            const notification = document.getElementById('realTimeNotification');
+            const messageEl = document.getElementById('notificationMessage');
+            
+            messageEl.textContent = message;
+            notification.className = `real-time-notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 5000);
+        }
+
+
+
+        function showAlert(message, type) {
+            const alertSection = document.getElementById('alertSection');
+            const alertId = 'alert-' + Date.now();
+            
+            alertSection.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" id="${alertId}" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                const alert = document.getElementById(alertId);
+                if (alert) alert.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html> 
