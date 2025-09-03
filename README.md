@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 # MEDIMORPH - Prescription Digitization & Medication Reminder System (MongoDB)
 
@@ -131,3 +132,6 @@ medimorph/
 ---
 
 Made with ❤️ for better healthcare management
+=======
+# MEDIMORPHDB
+>>>>>>> 8a7c21d
